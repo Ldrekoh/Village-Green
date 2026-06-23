@@ -11,7 +11,7 @@ export async function proxy(request: NextRequest) {
 
     // 1. Protection globale : Si aucune session n'est active
     if (!session) {
-        return NextResponse.redirect(new URL("/login", request.url));
+        return NextResponse.redirect(new URL("/auth/signin", request.url));
     }
 
     // 2. Protection fine par Rôle pour le Back-office (/admin)

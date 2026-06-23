@@ -18,10 +18,12 @@ additionalFields:{
     role:{
         type:"string",
         defaultValue:"CUSTOMER_B2C",
+        input:false
     },
     customerId:{
         type:"string",
-        required:false
+        required:false,
+        input:false
     }
 }
     },

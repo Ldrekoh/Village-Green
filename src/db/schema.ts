@@ -21,9 +21,24 @@ import { relations, sql } from 'drizzle-orm';
 // ==========================================
 
 export type PaymentInfoDetails =
-    | { type: 'CB';       transactionId: string; last4: string; brand: string }
-    | { type: 'VIREMENT'; iban: string; bic: string; bankName: string; reference: string }
-    | { type: 'CHEQUE';   checkNumber: string; bankCode: string; drawerName: string };
+  | { 
+      type: 'CB'; 
+      transactionId: string; 
+      last4: string; 
+      brand: string; 
+    }
+  | { 
+      type: 'VIREMENT'; 
+      providerReferenceId: string; // Token ou ID de virement généré par la banque/PSP
+      maskedIban: string;          // Version masquée pour l'affichage (ex: FR76 •••• •••• 1234)
+      bankName: string; 
+    }
+  | { 
+      type: 'CHEQUE'; 
+      providerReferenceId: string; // ID unique du scan ou de l'enregistrement du chèque (Back-office/ERP)
+      maskedAccount: string;       // Version masquée du numéro de compte associé si nécessaire
+      drawerName: string;          // Nom de l'émetteur (non sensible, utile pour lettrage comptable)
+    };
 
 export type AddressDetails = {
     street: string;
@@ -247,6 +262,18 @@ export const invoices = pgTable('invoices', {
 }, (table) => [
     uniqueIndex('idx_invoices_order_unique').on(table.orderId),
     check('check_positive_totals', sql`${table.totalHt} >= 0 AND ${table.totalTtc} >= ${table.totalHt}`),
+          check(
+   'check_paid_invoice_payment_info', 
+          sql`
+          ${table.isPaid} = false
+            OR (
+                ${table.paymentMethod} IS NOT NULL
+                AND ${table.paymentInfo} IS NOT NULL
+                AND ${table.paymentInfo}->>'type' = ${table.paymentMethod}::text
+            )
+        `,
+    ),
+       
 ]);
 
 // ==========================================

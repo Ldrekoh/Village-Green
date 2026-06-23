@@ -51,21 +51,23 @@ export function SigninForm({
   });
 
   const onSubmit = async (values: SigninFormValues) => {
-    setIsLoading(true);
-
-    const { success, message } = await signInAction(
-      values.email,
-      values.password,
-    );
-
-    if (success) {
-      toast.success(message as string);
-      router.push("/");
-    } else {
-      toast.error(message as string);
-    }
-
-    setIsLoading(false);
+     setIsLoading(true);
+   try {
+     const { success, message } = await signInAction(
+       values.email,
+       values.password,
+     );
+     if (success) {
+       toast.success(message as string);
+       router.push("/");
+     } else {
+       toast.error(message as string);
+     }
+   } catch {
+     toast.error("Unable to sign in. Please try again.");
+   } finally {
+     setIsLoading(false);
+   }
   };
 
   return (

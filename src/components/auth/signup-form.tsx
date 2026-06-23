@@ -65,21 +65,24 @@ export function SignupForm({
 
   const onSubmit = async (values: SignupFormValues) => {
     setIsLoading(true);
+    try {
+      const { success, message } = await signUpAction(
+        values.email,
+        values.password,
+        values.name
+      );
 
-    const { success, message } = await signUpAction(
-      values.email,
-      values.password,
-      values.name,
-    );
-
-    if (success) {
-      toast.success(message as string);
-      router.push("/");
-    } else {
-      toast.error(message as string);
+      if (success) {
+        toast.success(message as string);
+        router.push("/");
+      } else {
+        toast.error(message as string);
+      }
+    } catch {
+      toast.error("Unable to sign up. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (
@@ -98,7 +101,8 @@ export function SignupForm({
                 <FieldLabel htmlFor="name">Full Name</FieldLabel>
                 <Input
                   id="name"
-                  type="name"
+                  type="text"
+                  autoComplete="name"
                   placeholder="John Doe"
                   disabled={isLoading}
                   {...register("name")}
