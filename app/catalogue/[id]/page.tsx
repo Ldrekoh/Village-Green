@@ -9,23 +9,38 @@ interface ProductPageProps {
 
 export default async function ProductDetailPage({ params }: ProductPageProps) {
   const { id } = await params;
-  const { data: product } = await getProductByIdAction(id);
+  const result = await getProductByIdAction(id);
+  if (!result.success) {
+    throw new Error(`Failed to load product detail for id=${id}`);
+  }
+  const product = result.data;
 
-  // Si le produit n'existe pas ou est inactif
   if (!product || !product.isActive) {
     notFound();
   }
-
+  const priceHt = Number(product.priceBuyHt);
+  const vatRate = Number(product.vatRate);
+  const priceTtc = priceHt * (1 + vatRate / 100);
+  const currencyFormatter = new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  });
+  const numberFormatter = new Intl.NumberFormat("fr-FR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <Link href="/catalogue" className="text-sm text-muted-foreground hover:underline">
+        <Link
+          href="/catalogue"
+          className="text-sm text-muted-foreground hover:underline"
+        >
           ← Retour au catalogue
         </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-card border rounded-xl p-6 shadow-sm">
-        {/* Visuel Produit */}
         <div className="aspect-square bg-muted rounded-lg overflow-hidden">
           <img
             src={product.photoUrl || "/placeholder.svg"}
@@ -34,22 +49,27 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           />
         </div>
 
-        {/* Métadonnées & Achat */}
         <div className="flex flex-col gap-4">
           <div>
             <p className="text-xs font-semibold uppercase text-primary tracking-wider">
               {product.category?.name}
             </p>
             <h1 className="text-3xl font-bold mt-1">{product.labelShort}</h1>
-            <p className="text-sm text-muted-foreground mt-1">Réf: {product.providerRef}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Réf: {product.providerRef}
+            </p>
           </div>
 
           <div className="border-t border-b py-4 my-2">
             <p className="text-3xl font-bold text-primary">
-              {parseFloat(product.priceBuyHt).toFixed(2)} € <span className="text-sm font-normal text-muted-foreground">HT</span>
+              {currencyFormatter.format(priceHt)}{" "}
+              <span className="text-sm font-normal text-muted-foreground">
+                HT
+              </span>
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              Soit {(parseFloat(product.priceBuyHt) * (1 + parseFloat(product.vatRate) / 100)).toFixed(2)} € TTC (TVA {parseFloat(product.vatRate)}%)
+              Soit {currencyFormatter.format(priceTtc)} TTC (TVA{" "}
+              {numberFormatter.format(vatRate)}%)
             </p>
           </div>
 
@@ -71,7 +91,12 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                 </Button>
               </div>
             ) : (
-              <Button size="lg" variant="outline" disabled className="w-full sm:w-auto">
+              <Button
+                size="lg"
+                variant="outline"
+                disabled
+                className="w-full sm:w-auto"
+              >
                 Rupture de stock
               </Button>
             )}

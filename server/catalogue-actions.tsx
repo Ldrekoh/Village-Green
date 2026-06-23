@@ -44,7 +44,7 @@ export const getProductsAction = async (filters: FilterParams) => {
   try {
     const conditions = [eq(products.isActive, true)];
     if (filters.search) {
-      conditions.push(ilike(products.labelShort, `%${filters.search}`));
+     conditions.push(ilike(products.labelShort, `%${filters.search}%`));
     }
 
     if (filters.category) {
