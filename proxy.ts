@@ -19,9 +19,9 @@ export async function proxy(request: NextRequest) {
     if (pathname.startsWith("/admin")) {
         const userRole = session.user.role; // Récupéré grâce aux additionalFields de Better-Auth
 
-        if (userRole !== "admin" && userRole !== "commercial") {
+        if (userRole !== "ADMIN" && userRole !== "COMMERCIAL") {
             // L'utilisateur est connecté mais n'a pas les droits -> Redirection vers son espace client
-            return NextResponse.redirect(new URL("/dashboard", request.url));
+            return NextResponse.redirect(new URL("/", request.url));
         }
     }
 
