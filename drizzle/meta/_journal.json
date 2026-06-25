@@ -15,6 +15,20 @@
       "when": 1782209437925,
       "tag": "0001_fixed_tomas",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782284870790,
+      "tag": "0002_chief_living_mummy",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782286379462,
+      "tag": "0003_huge_hellfire_club",
+      "breakpoints": true
     }
   ]
 }
