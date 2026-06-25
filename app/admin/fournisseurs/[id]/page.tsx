@@ -28,11 +28,14 @@ export default async function AdminProviderDetailPage({ params }: ProviderDetail
 
   const provider = res.data;
 
+  // Choix dynamique de la route de retour en fonction du rôle
+  const backLink = session.user.role === "ADMIN" ? "/admin/fournisseurs" : "/";
+
   return (
     <main className="container mx-auto p-6 max-w-5xl space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/admin/fournisseurs">
+          <Link href={backLink}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>

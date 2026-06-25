@@ -28,13 +28,23 @@ export function ProvidersClientContainer({ initialProviders }: ProvidersClientCo
   // State pour gérer la liste courante affichée (filtrée ou non)
   const [filteredProviders, setFilteredProviders] = useState<ProviderItem[]>(initialProviders);
   const [isSearching, setIsSearching] = useState(false);
+  const [currentQuery, setCurrentQuery] = useState("");
 
-  // Crucial : Synchronise le state local lorsque les données serveur changent (revalidatePath après ADD/UPDATE/DELETE)
+  // Synchronise le state local lorsque les données serveur changent (revalidatePath après ADD/UPDATE/DELETE)
   useEffect(() => {
-    if (!isSearching) {
+    if (!isSearching || !currentQuery.trim()) {
       setFilteredProviders(initialProviders);
+    } else {
+      // Si une recherche est en cours, on réapplique le filtre sur les nouvelles données fraîches du serveur
+      const normalizedQuery = currentQuery.trim().toLowerCase();
+      const freshlyFiltered = initialProviders.filter(
+        (prov) =>
+          prov.name.toLowerCase().includes(normalizedQuery) ||
+          prov.refProvider.toLowerCase().includes(normalizedQuery)
+      );
+      setFilteredProviders(freshlyFiltered);
     }
-  }, [initialProviders, isSearching]);
+  }, [initialProviders, isSearching, currentQuery]);
 
   const handleStartEdit = (provider: ProviderItem) => {
     setEditingProvider(provider);
@@ -51,13 +61,15 @@ export function ProvidersClientContainer({ initialProviders }: ProvidersClientCo
     setEditingProvider(null);
   };
 
-  const handleSearchResults = (results: ProviderItem[]) => {
+  const handleSearchResults = (results: ProviderItem[], query: string) => {
     setIsSearching(true);
+    setCurrentQuery(query);
     setFilteredProviders(results);
   };
 
   const handleClearSearch = () => {
     setIsSearching(false);
+    setCurrentQuery("");
     setFilteredProviders(initialProviders);
   };
 
@@ -73,7 +85,7 @@ export function ProvidersClientContainer({ initialProviders }: ProvidersClientCo
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {/* Barre de recherche débourcée */}
           <SearchProviderInput 
-            onSearchResults={handleSearchResults} 
+            onSearchResults={(results, query) => handleSearchResults(results, query)} 
             onClear={handleClearSearch} 
           />
 
@@ -115,19 +127,19 @@ export function ProvidersClientContainer({ initialProviders }: ProvidersClientCo
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredProviders.map((prov) => (
             <Card key={prov.id} className="flex flex-col justify-between min-h-[160px] shadow-sm">
-                <Link 
+              <Link 
                 href={`/admin/fournisseurs/${prov.id}`}
                 className="flex-1 flex flex-col justify-between focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:rounded-t-lg"
               >
-              <CardHeader className="pb-2 space-y-1">
-                <CardTitle className="text-base font-semibold pt-1 line-clamp-1">{prov.name}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground flex-1">
-                <p className="text-xs text-muted-foreground uppercase font-mono tracking-wider">
-                  Réf: <span className="text-foreground font-medium">{prov.refProvider}</span>
-                </p>
-              </CardContent>
-</Link>
+                <CardHeader className="pb-2 space-y-1">
+                  <CardTitle className="text-base font-semibold pt-1 line-clamp-1">{prov.name}</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground flex-1">
+                  <p className="text-xs text-muted-foreground uppercase font-mono tracking-wider">
+                    Réf: <span className="text-foreground font-medium">{prov.refProvider}</span>
+                  </p>
+                </CardContent>
+              </Link>
               <CardFooter className="border-t bg-muted/20 pt-3 pb-3 flex justify-between items-center gap-2">
                 <Button
                   type="button"

@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "providers_name_unique_idx" ON "providers" USING btree ("name");--> statement-breakpoint
+CREATE UNIQUE INDEX "providers_ref_provider_unique_idx" ON "providers" USING btree ("ref_provider");

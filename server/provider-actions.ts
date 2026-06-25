@@ -54,6 +54,14 @@ export const createProviderAction = async (formData: {
   } catch (error) {
     const e = error as Error
     console.error("Error creating provider:", error)
+
+    if (e.message.includes("unique violation") || e.message.includes("already exists")) {
+      return {
+        success: false,
+        message: "Un fournisseur avec ce nom ou cette référence existe déjà."
+      }
+    }
+
     return {
       success: false,
       message: e.message || "Impossible de créer le fournisseur."
@@ -89,11 +97,17 @@ export const updateProviderAction = async (id: string, formData: {
       }
     }
 
-    await db.update(providers).set({
+    // Utilisation de .returning() pour vérifier l'application effective des modifications
+    const updatedRows = await db.update(providers).set({
       name: validatedData.name,
       refProvider: upperRef
     })
     .where(eq(providers.id, id))
+    .returning()
+
+    if (!updatedRows || updatedRows.length === 0) {
+      throw new Error("Fournisseur introuvable.")
+    }
 
     revalidatePath("/admin/fournisseurs")
 
@@ -104,6 +118,14 @@ export const updateProviderAction = async (id: string, formData: {
   } catch (error) {
     const e = error as Error
     console.error("Error updating provider:", error)
+
+    if (e.message.includes("unique violation") || e.message.includes("already exists")) {
+      return {
+        success: false,
+        message: "Les modifications entrent en conflit avec un fournisseur existant."
+      }
+    }
+
     return {
       success: false,
       message: e.message || "Impossible de mettre à jour le fournisseur."
@@ -184,14 +206,13 @@ export async function searchProvidersAction(searchParam?: string) {
 
     const queryTerm = `%${searchParam.trim()}%`;
 
-    // Recherche insensible à la casse sur le nom OU sur la référence
     const searchResults = await db.query.providers.findMany({
       where: (providers) => or(
         ilike(providers.name, queryTerm),
         ilike(providers.refProvider, queryTerm)
       ),
       orderBy: (providers, { asc }) => [asc(providers.name)],
-      limit: 50, // Sécurité pour éviter de surcharger le payload du réseau
+      limit: 50,
     });
 
     return { success: true, data: searchResults };
@@ -210,7 +231,6 @@ export const deleteProviderAction = async (id: string) => {
       throw new Error("L'identifiant du fournisseur est requis.")
     }
 
-    // 1. Vérification optionnelle mais recommandée pour être proactif sur l'UX
     const linkedProduct = await db.query.products.findFirst({
       where: (products, { eq }) => eq(products.providerId, id),
     })
@@ -221,10 +241,15 @@ export const deleteProviderAction = async (id: string) => {
       )
     }
 
-    // 2. Suppression effective
-    await db.delete(providers).where(eq(providers.id, id))
+    // Utilisation de .returning() pour s'assurer que l'ID existait bien au moment de la commande
+    const deletedRows = await db.delete(providers)
+      .where(eq(providers.id, id))
+      .returning()
 
-    // 3. Revalidation du cache de la page de la liste
+    if (!deletedRows || deletedRows.length === 0) {
+      throw new Error("Fournisseur introuvable.")
+    }
+
     revalidatePath("/admin/fournisseurs")
 
     return {
@@ -235,7 +260,6 @@ export const deleteProviderAction = async (id: string) => {
     const e = error as Error
     console.error(`Error deleting provider with id ${id}:`, error)
 
-    // Gestion de l'erreur PostgreSQL si jamais la vérification amont a été court-circuitée (race condition)
     if (e.message.includes("foreign key constraint") || e.message.includes("violates foreign key")) {
       return {
         success: false,

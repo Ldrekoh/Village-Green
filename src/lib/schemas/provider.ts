@@ -8,7 +8,7 @@ export const providerSchema = z.object({
   refProvider: z
     .string()
     .min(3, { message: "La référence doit contenir au moins 3 caractères." })
-    .max(20, { message: "La référence ne doit pas dépasser 20 caractères." })
+    .max(50, { message: "La référence ne doit pas dépasser 50 caractères." })
     // .regex(/^[A-Z0-9-]+$/, { 
     //   message: "La référence ne doit contenir que des lettres majuscules, chiffres et tirets (ex: FOURN-01)." 
     // }),
