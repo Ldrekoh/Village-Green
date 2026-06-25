@@ -149,7 +149,10 @@ export const providers = pgTable('providers', {
     name:        varchar('name', { length: 100 }).notNull(),
     refProvider: varchar('ref_provider', { length: 50 }).notNull().unique(),
     createdAt:   timestamp('created_at').defaultNow().notNull(),
-});
+},(table) => [
+    uniqueIndex('providers_name_unique_idx').on(table.name),
+    uniqueIndex('providers_ref_provider_unique_idx').on(table.refProvider),
+]);
 
 export const categories = pgTable('categories', {
     id:       uuid('id').primaryKey().defaultRandom(),
