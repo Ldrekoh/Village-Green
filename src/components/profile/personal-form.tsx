@@ -38,38 +38,31 @@ export function PersonalProfileForm({ initialData, onSuccess }: PersonalFormProp
     resolver: zodResolver(personalProfileSchema),
     defaultValues: {
       name: initialData.name,
-      image: initialData.image || "", // Garde la valeur actuelle ou une string vide
+      image: initialData.image || "",
     },
   });
 
-  // Gestion du changement de fichier
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validation rapide de la taille (ex: 2 Mo max)
+    // Validation stricte à 2 Mo max
     if (file.size > 2 * 1024 * 1024) {
       toast.error("L'image ne doit pas dépasser 2 Mo.");
       return;
     }
 
-    // Création d'une URL de preview locale temporaire
     const localUrl = URL.createObjectURL(file);
     setPreviewUrl(localUrl);
 
-    // ICI : Tu as deux options selon ton backend :
-    // Option A : Convertir en Base64 si ton action attend une string URI
+    // Encodage en Base64 pour le transport Server Action
     const reader = new FileReader();
     reader.onloadend = () => {
       setValue("image", reader.result as string); 
     };
     reader.readAsDataURL(file);
-
-    // Option B : Si tu utilises un upload cloud (S3/Cloudinary), tu lancerais 
-    // l'upload ici directement et ferais le setValue avec l'URL finale.
   };
 
-  // Nettoyage de la mémoire pour éviter les fuites d'URLs temporaires
   useEffect(() => {
     return () => {
       if (previewUrl && previewUrl.startsWith("blob:")) {
@@ -100,8 +93,6 @@ export function PersonalProfileForm({ initialData, onSuccess }: PersonalFormProp
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-4">
       <FieldGroup className="space-y-4">
-        
-        {/* SECTION PREVIEW & UPLOAD FILE */}
         <div className="flex flex-col items-center gap-4 py-2 border-b pb-4">
           <Avatar className="h-24 w-24 border-2 border-muted shadow-sm">
             {previewUrl ? (
@@ -112,7 +103,6 @@ export function PersonalProfileForm({ initialData, onSuccess }: PersonalFormProp
             </AvatarFallback>
           </Avatar>
 
-          {/* Input file caché pour des raisons de style */}
           <input
             type="file"
             id="avatar-upload"
@@ -136,7 +126,6 @@ export function PersonalProfileForm({ initialData, onSuccess }: PersonalFormProp
           <p className="text-[10px] text-muted-foreground">PNG, JPEG ou WEBP. Maximum 2 Mo.</p>
         </div>
 
-        {/* CHAMPS TRADITIONNELS */}
         <Field>
           <FieldLabel htmlFor="email">Adresse e-mail (Non modifiable)</FieldLabel>
           <Input id="email" type="email" value={initialData.email} disabled className="bg-muted" />

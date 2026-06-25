@@ -40,6 +40,7 @@ export function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProps) {
       const { success, message } = await updatePasswordProfileAction({
         currentPassword: values.currentPassword,
         newPassword: values.newPassword,
+        confirmPassword: values.confirmPassword,
         revokeOtherSessions: values.revokeOtherSessions,
       });
 

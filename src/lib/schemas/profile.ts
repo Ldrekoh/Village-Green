@@ -1,6 +1,5 @@
 import * as z from "zod";
 
-
 export const updatePasswordSchema = z
   .object({
     currentPassword: z
@@ -25,7 +24,7 @@ export const personalProfileSchema = z.object({
     .min(2, { message: "Le nom doit contenir au moins 2 caractères." }),
   image: z
     .string()
-    .or(z.literal("")), // Permet de laisser le champ vide
+    .or(z.literal("")),
 });
 
 export const companyProfileSchema = z.object({
@@ -40,7 +39,6 @@ export const companyProfileSchema = z.object({
     .string()
     .min(4, { message: "Le numéro de TVA est requis ou invalide." }),
 });
-
 
 export type UpdatePasswordValues = z.infer<typeof updatePasswordSchema>;
 export type PersonalProfileValues = z.infer<typeof personalProfileSchema>;

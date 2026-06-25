@@ -8,19 +8,22 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type { AddressItem } from "@/db/schema";
 import { getCurrentUserAction } from "./user-actions";
-
+import { personalProfileSchema, updatePasswordSchema, companyProfileSchema } from "@/lib/schemas/profile";
 
 export const updatePasswordProfileAction = async (formData: {
   newPassword: string;
   currentPassword: string;
+  confirmPassword : string;
   revokeOtherSessions: boolean; 
 }) => {
   try {
+    const validatedData = updatePasswordSchema.parse(formData);
+
     await auth.api.changePassword({
       body: {
-        newPassword: formData.newPassword,
-        currentPassword: formData.currentPassword,
-        revokeOtherSessions: formData.revokeOtherSessions,
+        newPassword: validatedData.newPassword,
+        currentPassword: validatedData.currentPassword,
+        revokeOtherSessions: validatedData.revokeOtherSessions,
       },
       headers: await headers(),
     });
@@ -48,7 +51,6 @@ export const updatePasswordProfileAction = async (formData: {
       }
     }
 
-    // 2. Fallback pour les erreurs serveurs brutes ou crash réseau
     console.error("Erreur changePassword:", error);
     return {
       success: false,
@@ -62,11 +64,12 @@ export async function updatePersonalProfileAction(formData: {
   image: string;
 }) {
   try {
+    const validatedData = personalProfileSchema.parse(formData);
     const session = await getCurrentUserAction();
 
     await auth.api.updateUser({
       headers: await headers(),
-      body: { name: formData.name, image: formData.image },
+      body: { name: validatedData.name, image: validatedData.image },
     });
 
     revalidatePath("/mon-compte");
@@ -84,13 +87,14 @@ export async function updatePersonalProfileAction(formData: {
   }
 }
 
-
 export async function updateCompanyProfileAction(formData: {
   companyName: string;
   siret: string;
   vatNumber: string;
 }) {
   try {
+    const validatedData = companyProfileSchema.parse(formData);
+
     const session = await getCurrentUserAction();
     const currentUser = session.user;
 
@@ -98,52 +102,78 @@ export async function updateCompanyProfileAction(formData: {
       throw new Error("Action non autorisée pour les comptes non-B2B.");
     }
 
-    if (!currentUser.customerId) {
-      const customerRef = `VG-B2B-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
+    return await db.transaction(async (tx) => {
+      // 1. On récupère et on verrouille l'utilisateur courant
+      const [freshUser] = await tx
+        .select()
+        .from(user)
+        .where(eq(user.id, currentUser.id))
+        .for("update");
 
-      const defaultCommercial = await db.query.commercials.findFirst();
-      if (!defaultCommercial) {
-        throw new Error(
-          "Configuration système : Aucun conseiller commercial disponible pour l'affectation.",
-        );
+      if (!freshUser) {
+        throw new Error("Utilisateur introuvable.");
       }
 
-      const [newCustomer] = await db
-        .insert(customers)
-        .values({
-          customerRef,
-          type: "PROFESSIONNEL",
-          firstName: currentUser.name.split(" ")[0] || "Client",
-          lastName: currentUser.name.split(" ")[1] || "Pro",
-          email: currentUser.email,
-          coefficient: "0.90", // Coefficient par défaut (10% de remise brute)
-          commercialId: defaultCommercial.id,
-          companyName: formData.companyName,
-          siret: formData.siret,
-          vatNumber: formData.vatNumber,
-        })
-        .returning();
+      if (!freshUser.customerId) {
+        const uniqueSuffix = crypto.randomUUID().split("-")[0].toUpperCase();
+        const customerRef = `VG-B2B-${new Date().getFullYear()}-${uniqueSuffix}`;
 
-      await db
-        .update(user)
-        .set({ customerId: newCustomer.id })
-        .where(eq(user.id, currentUser.id));
-    } else {
-      await db
-        .update(customers)
-        .set({
-          companyName: formData.companyName,
-          siret: formData.siret,
-          vatNumber: formData.vatNumber,
-        })
-        .where(eq(customers.id, currentUser.customerId));
-    }
+        const defaultCommercial = await tx.query.commercials.findFirst();
+        if (!defaultCommercial) {
+          throw new Error("Configuration système : Aucun conseiller commercial disponible.");
+        }
 
-    revalidatePath("/mon-compte");
-    return { 
-      success: true, 
-      message: "Les informations de l'entreprise ont été enregistrées avec succès !" 
-    };
+        // 2. Gestion propre du conflit d'email via ON CONFLICT DO UPDATE
+        const [newCustomer] = await tx
+          .insert(customers)
+          .values({
+            customerRef,
+            type: "PROFESSIONNEL",
+            firstName: freshUser.name.split(" ")[0] || "Client",
+            lastName: freshUser.name.split(" ")[1] || "Pro",
+            email: freshUser.email,
+            coefficient: "0.90",
+            commercialId: defaultCommercial.id,
+            companyName: validatedData.companyName,
+            siret: validatedData.siret,
+            vatNumber: validatedData.vatNumber,
+          })
+          .onConflictDoUpdate({
+            target: customers.email, // Si l'email est déjà là
+            set: {
+              companyName: validatedData.companyName,
+              siret: validatedData.siret,
+              vatNumber: validatedData.vatNumber,
+            },
+          })
+          .returning();
+
+        // 3. Liaison de l'ID (que le client vienne d'être créé ou qu'il existait déjà en DB)
+        await tx
+          .update(user)
+          .set({ customerId: newCustomer.id })
+          .where(eq(user.id, freshUser.id));
+
+      } else {
+        // Mode modification classique si le customerId était déjà lié au compte
+        await tx
+          .update(customers)
+          .set({
+            companyName: validatedData.companyName,
+            siret: validatedData.siret,
+            vatNumber: validatedData.vatNumber,
+          })
+          .where(eq(customers.id, freshUser.customerId));
+      }
+
+      revalidatePath("/mon-compte");
+      
+      return { 
+        success: true, 
+        message: "Les informations de l'entreprise ont été enregistrées avec succès !" 
+      };
+    });
+
   } catch (error) {
     const e = error as Error;
     console.error("Error updating company profile:", error);
@@ -154,7 +184,6 @@ export async function updateCompanyProfileAction(formData: {
   }
 }
 
-
 export async function manageUserAddressesAction(
   intent: "ADD" | "DELETE" | "UPDATE", 
   payload: { addressId: string; addressData?: Omit<AddressItem, "id"> },
@@ -162,60 +191,69 @@ export async function manageUserAddressesAction(
   try {
     const session = await getCurrentUserAction();
 
-    const userData = await db.query.user.findFirst({
-      where: eq(user.id, session.user.id),
-    });
-    if (!userData) throw new Error("Compte introuvable.");
-
-    let currentList = (userData.savedAddresses as AddressItem[]) || [];
-
-    if (intent === "DELETE") {
-      currentList = currentList.filter((addr) => addr.id !== payload.addressId);
-      if (currentList.length > 0) {
-        if (!currentList.some((a) => a.isDefaultDelivery))
-          currentList[0].isDefaultDelivery = true;
-        if (!currentList.some((a) => a.isDefaultBilling))
-          currentList[0].isDefaultBilling = true;
-      }
-    } else {
-      if (!payload.addressData)
-        throw new Error("Données de l'adresse manquantes.");
-      const data = payload.addressData;
-
-      if (data.isDefaultDelivery) {
-        currentList = currentList.map((a) => ({ ...a, isDefaultDelivery: false }));
-      }
-      if (data.isDefaultBilling) {
-        currentList = currentList.map((a) => ({ ...a, isDefaultBilling: false }));
-      }
-
-      if (intent === "UPDATE") {
-
-        currentList = currentList.map((addr) =>
-          addr.id === payload.addressId ? { ...data, id: payload.addressId } : addr
-        );
-      } else {
-
-        const newItem: AddressItem = { ...data, id: payload.addressId };
-        currentList.push(newItem);
-      }
-    }
-
-    await db
-      .update(user)
-      .set({ savedAddresses: currentList })
-      .where(eq(user.id, session.user.id));
+    // 1. Début de la transaction avec verrouillage exclusif
+    return await db.transaction(async (tx) => {
       
-    revalidatePath("/mon-compte/adresses");
-    
-    let successMessage = "Adresse ajoutée avec succès !";
-    if (intent === "DELETE") successMessage = "Adresse supprimée avec succès !";
-    if (intent === "UPDATE") successMessage = "Adresse modifiée avec succès !";
+      // Lecture et verrouillage de la ligne utilisateur (FOR UPDATE)
+      const [userData] = await tx
+        .select()
+        .from(user)
+        .where(eq(user.id, session.user.id))
+        .for("update");
 
-    return { 
-      success: true, 
-      message: successMessage 
-    };
+      if (!userData) throw new Error("Compte introuvable.");
+
+      let currentList = (userData.savedAddresses as AddressItem[]) || [];
+
+      // 2. Application de la logique de modification/suppression/création
+      if (intent === "DELETE") {
+        currentList = currentList.filter((addr) => addr.id !== payload.addressId);
+        if (currentList.length > 0) {
+          if (!currentList.some((a) => a.isDefaultDelivery))
+            currentList[0].isDefaultDelivery = true;
+          if (!currentList.some((a) => a.isDefaultBilling))
+            currentList[0].isDefaultBilling = true;
+        }
+      } else {
+        if (!payload.addressData)
+          throw new Error("Données de l'adresse manquantes.");
+        const data = payload.addressData;
+
+        if (data.isDefaultDelivery) {
+          currentList = currentList.map((a) => ({ ...a, isDefaultDelivery: false }));
+        }
+        if (data.isDefaultBilling) {
+          currentList = currentList.map((a) => ({ ...a, isDefaultBilling: false }));
+        }
+
+        if (intent === "UPDATE") {
+          currentList = currentList.map((addr) =>
+            addr.id === payload.addressId ? { ...data, id: payload.addressId } : addr
+          );
+        } else {
+          const newItem: AddressItem = { ...data, id: payload.addressId };
+          currentList.push(newItem);
+        }
+      }
+
+      // 3. Persistance au sein de la transaction
+      await tx
+        .update(user)
+        .set({ savedAddresses: currentList })
+        .where(eq(user.id, session.user.id));
+        
+      revalidatePath("/mon-compte/adresses");
+      
+      let successMessage = "Adresse ajoutée avec succès !";
+      if (intent === "DELETE") successMessage = "Adresse supprimée avec succès !";
+      if (intent === "UPDATE") successMessage = "Adresse modifiée avec succès !";
+
+      return { 
+        success: true, 
+        message: successMessage 
+      };
+    });
+
   } catch (error) {
     const e = error as Error;
     console.error("Error managing addresses:", error);
