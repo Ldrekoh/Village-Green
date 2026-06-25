@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "saved_addresses" jsonb DEFAULT '[]'::jsonb NOT NULL;

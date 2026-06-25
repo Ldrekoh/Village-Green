@@ -48,6 +48,17 @@ export type AddressDetails = {
     country: string;
 };
 
+export type AddressItem = {
+    id: string;
+    street: string;
+    complement?: string;
+    zipCode: string;
+    city: string;
+    country: string;
+    isDefaultDelivery: boolean;
+    isDefaultBilling: boolean;
+};
+
 // ==========================================
 // ENUMS POSTGRESQL
 // ==========================================
@@ -69,6 +80,8 @@ export const user = pgTable('user', {
     image:         text('image'),
     role:          userRoleEnum('role').default('CUSTOMER_B2C').notNull(),
     customerId:    uuid('customer_id').references(() => customers.id, { onDelete: 'set null' }),
+    savedAddresses: jsonb('saved_addresses').$type<AddressItem[]>().default([]).notNull(),
+
     createdAt:     timestamp('created_at').defaultNow().notNull(),
     updatedAt:     timestamp('updated_at')
         .defaultNow()
@@ -186,6 +199,8 @@ export const customers = pgTable('customers', {
     customerRef:  varchar('customer_ref', { length: 50 }).notNull().unique(),
     type:         clientTypeEnum('type').notNull(),
     companyName:  varchar('company_name', { length: 100 }),
+    siret:        varchar('siret', { length: 14 }),
+    vatNumber:    varchar('vat_number', { length: 25 }),
     firstName:    varchar('first_name',   { length: 50 }).notNull(),
     lastName:     varchar('last_name',    { length: 50 }).notNull(),
     email:        varchar('email',        { length: 100 }).notNull().unique(),

@@ -26,7 +26,7 @@ if (!session){
 
 return{
     ...session,
-    user: session.user
+    currentUser: session.user
     // currentUser,
      
 }
